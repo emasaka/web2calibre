@@ -1,6 +1,7 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use Getopt::Std;
 use Encode qw(encode);
 use File::Basename qw(basename);
 use File::Temp qw(tempdir);
@@ -12,11 +13,11 @@ use File::Slurp qw(write_file);
 use HTML::TreeBuilder;
 use PDF::API2;
 
-my @WKHTMLTOPDF_OPTS = qw(-s A5 -B 0 -L 0 -R 0 -T 0 --disallow-local-file-access -q);
+my @wkhtmltopdf_opts = qw(-s A5 -B 0 -L 0 -R 0 -T 0 --disallow-local-file-access -q);
 
 sub html2pdf {
     my ($url, $file) = @_;
-    system('wkhtmltopdf', @WKHTMLTOPDF_OPTS, $url, $file) == 0 or die;
+    system('wkhtmltopdf', @wkhtmltopdf_opts, $url, $file) == 0 or die;
 }
 
 sub instapepered_url {
@@ -54,9 +55,23 @@ sub add_to_calibre {
     system('calibredb', 'add', '-d', $_[0]) == 0 or die;
 }
 
+sub parse_options {
+    my %opts;
+    getopts('n', \%opts);
+    if ($opts{n}) {
+        push(@wkhtmltopdf_opts, '-n');
+    }
+}
+
 sub usage {
     my $cmd = basename($0);
-    print "Usage: ${cmd} url [url2...]\n";
+    print <<"__USAGE__";
+Usage: ${cmd} [OPTION]... url [url2]...
+
+  -n
+        Do not allow web pages to run javascript
+__USAGE__
+
     exit 1;
 }
 
@@ -68,6 +83,8 @@ sub check_urls {
 }
 
 if (__FILE__ eq $0) {
+    parse_options;
+
     my @urls = @ARGV;
     scalar(@urls) > 0 or usage;
     check_urls(@urls) or usage;
