@@ -1,0 +1,61 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use Encode qw(encode);
+use File::Temp qw(tempdir);
+use File::Spec::Functions qw(catfile);
+use URI::Escape;
+use LWP::Simple qw(get);
+use File::Slurp qw(write_file);
+use HTML::TreeBuilder;
+use PDF::API2;
+
+my @WKHTMLTOPDF_OPTS = qw(-n -s A5 -B 0 -L 0 -R 0 -T 0 --disallow-local-file-access -q);
+
+sub html2pdf {
+    my ($url, $file) = @_;
+    system('wkhtmltopdf', @WKHTMLTOPDF_OPTS, $url, $file) == 0 or die;
+}
+
+sub instapepered_url {
+    'http://instapaper.com/text?u=' . uri_escape($_[0]);
+}
+
+sub html_title {
+    my $tree = HTML::TreeBuilder->new;
+    $tree->parse($_[0]);
+    $tree->eof;
+    $tree->find('title')->as_text;
+}
+
+sub add_metadata {
+    my $rawfile = shift;
+    my $newfile = shift;
+    my %meta = @_;
+    my $pdf = PDF::API2->open($rawfile) or die;
+    my %metadata = ($pdf->info, %meta);
+    $pdf->info(%metadata);
+    $pdf->saveas($newfile);
+}
+
+sub add_to_calibre {
+    system('calibredb', 'add', $_[0]) == 0 or die;
+}
+
+if (__FILE__ eq $0) {
+    my $url = $ARGV[0] or die;
+
+    my $tmpdir = tempdir(ClEANUP => 1);
+    my $htmlfile = catfile($tmpdir, 'out.html');
+    my $rawpdffile = catfile($tmpdir, 'out_raw.pdf');
+    my $pdffile = catfile($tmpdir, 'out.pdf');
+
+    my $html = get(instapepered_url($url)) or die;
+    write_file $htmlfile, encode('utf-8', $html) or die;
+    my $title = html_title($html);
+
+    html2pdf $htmlfile, $rawpdffile;
+    add_metadata $rawpdffile, $pdffile, Title => $title, Author => 'web';
+
+    add_to_calibre $pdffile;
+}
