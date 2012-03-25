@@ -30,14 +30,24 @@ sub html_title {
     $tree->find('title')->as_text;
 }
 
-sub add_metadata {
-    my $rawfile = shift;
+sub merge_pdfs {
+    my $infiles_ref = shift;
     my $newfile = shift;
     my %meta = @_;
-    my $pdf = PDF::API2->open($rawfile) or die;
-    my %metadata = ($pdf->info, %meta);
-    $pdf->info(%metadata);
-    $pdf->saveas($newfile);
+
+    my %oldmeta;
+    my $newpdf = PDF::API2->new;
+    for my $file (@$infiles_ref) {
+        my $inpdf = PDF::API2->open($file) or die;
+        my $pages = scalar @{$inpdf->{pagestack}};
+        for my $page (1..$pages) {
+            $newpdf->importpage($inpdf, $page);
+        }
+        %oldmeta = $inpdf->info unless %oldmeta;
+        $inpdf->end;
+    }
+    $newpdf->info(%oldmeta, %meta);
+    $newpdf->saveas($newfile);
 }
 
 sub add_to_calibre {
@@ -46,7 +56,7 @@ sub add_to_calibre {
 
 sub usage {
     my $cmd = basename($0);
-    print "Usage: ${cmd} url\n";
+    print "Usage: ${cmd} url [url2...]\n";
     exit 1;
 }
 
@@ -58,20 +68,30 @@ sub check_urls {
 }
 
 if (__FILE__ eq $0) {
-    my $url = $ARGV[0] or usage;
-    check_urls($url) or usage;
+    my @urls = @ARGV;
+    scalar(@urls) > 0 or usage;
+    check_urls(@urls) or usage;
 
     my $tmpdir = tempdir(ClEANUP => 1);
-    my $htmlfile = catfile($tmpdir, 'out.html');
-    my $rawpdffile = catfile($tmpdir, 'out_raw.pdf');
-    my $pdffile = catfile($tmpdir, 'out.pdf');
+    my @pdfs = ();
+    my $title;
+    my $i = 0;
 
-    my $html = get(instapepered_url($url)) or die;
-    write_file $htmlfile, encode('utf-8', $html) or die;
-    my $title = html_title($html);
+    for my $url (@urls) {
+        my $htmlfile = catfile($tmpdir, "out_${i}.html");
+        my $rawpdffile = catfile($tmpdir, "out_${i}.pdf");
 
-    html2pdf $htmlfile, $rawpdffile;
-    add_metadata $rawpdffile, $pdffile, Title => $title, Author => 'web';
+        my $html = get(instapepered_url($url)) or die;
+        write_file $htmlfile, encode('utf-8', $html) or die;
+        $title ||= html_title($html);
+
+        html2pdf $htmlfile, $rawpdffile;
+        push(@pdfs, $rawpdffile);
+        $i++;
+    }
+
+    my $pdffile = catfile($tmpdir, 'result.pdf');
+    merge_pdfs \@pdfs, $pdffile, Title => $title, Author => 'web';
 
     add_to_calibre $pdffile;
 }
