@@ -12,7 +12,7 @@ use File::Slurp qw(write_file);
 use HTML::TreeBuilder;
 use PDF::API2;
 
-my @WKHTMLTOPDF_OPTS = qw(-n -s A5 -B 0 -L 0 -R 0 -T 0 --disallow-local-file-access -q);
+my @WKHTMLTOPDF_OPTS = qw(-s A5 -B 0 -L 0 -R 0 -T 0 --disallow-local-file-access -q);
 
 sub html2pdf {
     my ($url, $file) = @_;
