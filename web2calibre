@@ -91,7 +91,7 @@ if (__FILE__ eq $0) {
     scalar(@urls) > 0 or usage;
     check_urls(@urls) or usage;
 
-    my $tmpdir = tempdir(ClEANUP => 1);
+    my $tmpdir = tempdir(CLEANUP => 1);
     my @pdfs = ();
     my $title;
     my $i = 0;
